@@ -14,7 +14,7 @@ func main() {
 
 	http.HandleFunc("/webhook", webhookHandler)
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(getEnvOrDefault("PORT", "8080"), nil); err != nil {
 		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
 	}
@@ -35,4 +35,12 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("Received webhook request", "body", string(body))
 	w.WriteHeader(http.StatusOK)
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return ":" + defaultValue
+	}
+	return ":" + value
 }
