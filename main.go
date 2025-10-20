@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -38,7 +39,7 @@ func main() {
 func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, `{"alive": true}`)
+	_ = json.NewEncoder(w).Encode(map[string]bool{"alive": true}) //nolint:errcheck
 }
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +55,14 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("Received webhook request", "body", string(body))
+	jsonMap := make(map[string]interface{})
+	if err = json.Unmarshal(body, &jsonMap); err != nil {
+		slog.Error("Failed to parse JSON", "error", err)
+		http.Error(w, "Bad Request: Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	slog.Info("Received webhook request", "body", jsonMap)
 	w.WriteHeader(http.StatusOK)
 }
 
