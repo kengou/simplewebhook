@@ -28,6 +28,7 @@ func main() {
 		IdleTimeout:  time.Second * 60,
 	}
 
+	slog.Info("Server starting to listen", "addr", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
