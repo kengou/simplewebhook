@@ -17,26 +17,26 @@ func main() {
 	})))
 
 	router := mux.NewRouter()
-
 	router.HandleFunc("/webhook", webhookHandler).Methods(http.MethodPost)
-	router.HandleFunc("/healthz", HealthCheckHandler).Methods(http.MethodGet)
+	router.HandleFunc("/healthz", healthCheckHandler).Methods(http.MethodGet)
 
+	addr := "0.0.0.0:" + getEnvOrDefault("PORT", "8080")
 	srv := &http.Server{
 		Handler:      router,
-		Addr:         "0.0.0.0:" + getEnvOrDefault("PORT", "8080"),
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
-		IdleTimeout:  time.Second * 60,
+		Addr:         addr,
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
-	slog.Info("Server starting to listen", "addr", srv.Addr)
+	slog.Info("Server starting to listen", "addr", addr)
 	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
 	}
 }
 
-func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+func healthCheckHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]bool{"alive": true}) //nolint:errcheck
@@ -49,9 +49,10 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	defer r.Body.Close()
 
-	jsonMap := make(map[string]interface{})
-	if err = json.Unmarshal(body, &jsonMap); err != nil {
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal(body, &jsonMap); err != nil {
 		slog.Error("Failed to parse JSON", "error", err)
 		http.Error(w, "Bad Request: Invalid JSON", http.StatusBadRequest)
 		return
@@ -62,9 +63,8 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-	return value
+	return defaultValue
 }
