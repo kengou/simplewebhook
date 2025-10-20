@@ -23,7 +23,7 @@ func TestWebhookHandler_OKWithBody(t *testing.T) {
 }
 
 func TestWebhookHandler_MethodNotAllowed(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/webhook", nil)
+	req := httptest.NewRequest(http.MethodGet, "/webhook", http.NoBody)
 	rec := httptest.NewRecorder()
 	webhookHandler(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -35,7 +35,7 @@ func TestWebhookHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestWebhookHandler_InternalServerErrorOnReadError(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/webhook", nil)
+	req := httptest.NewRequest(http.MethodPost, "/webhook", http.NoBody)
 	req.Body = &errorBody{}
 	rec := httptest.NewRecorder()
 	webhookHandler(rec, req)

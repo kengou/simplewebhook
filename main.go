@@ -5,6 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -12,12 +15,29 @@ func main() {
 		Level: slog.LevelInfo,
 	})))
 
-	http.HandleFunc("/webhook", webhookHandler)
+	router := mux.NewRouter()
 
-	if err := http.ListenAndServe(getEnvOrDefault("PORT", "8080"), nil); err != nil {
+	router.HandleFunc("/webhook", webhookHandler).Methods(http.MethodPost)
+	router.HandleFunc("/healthz", HealthCheckHandler).Methods(http.MethodGet)
+
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         "0.0.0.0:" + getEnvOrDefault("PORT", "8080"),
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
+		IdleTimeout:  time.Second * 60,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
 	}
+}
+
+func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	io.WriteString(w, `{"alive": true}`)
 }
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +60,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 func getEnvOrDefault(key, defaultValue string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		return ":" + defaultValue
+		return defaultValue
 	}
-	return ":" + value
+	return value
 }
