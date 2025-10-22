@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func (m *mockReadCloser) Close() error {
 }
 
 func TestHealthCheckHandler(t *testing.T) {
-	req, err := http.NewRequest(http.MethodGet, "/healthz", nil)
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, "/healthz", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func TestHealthCheckHandler(t *testing.T) {
 
 func TestWebhookHandler_ValidJSON(t *testing.T) {
 	payload := `{"key":"value","number":123}`
-	req, err := http.NewRequest(http.MethodPost, "/webhook", bytes.NewBufferString(payload))
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewBufferString(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +67,7 @@ func TestWebhookHandler_ValidJSON(t *testing.T) {
 
 func TestWebhookHandler_InvalidJSON(t *testing.T) {
 	payload := `{"key":"value"` // Malformed JSON
-	req, err := http.NewRequest(http.MethodPost, "/webhook", bytes.NewBufferString(payload))
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewBufferString(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +89,7 @@ func TestWebhookHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestWebhookHandler_BodyReadError(t *testing.T) {
-	req, err := http.NewRequest(http.MethodPost, "/webhook", &mockReadCloser{})
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", &mockReadCloser{})
 	if err != nil {
 		t.Fatal(err)
 	}
