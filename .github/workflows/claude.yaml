@@ -22,8 +22,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
           show_full_output: true
-          allowed_bots: |
-            renovate[bot]
+          allowed_bots: '\*'
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
