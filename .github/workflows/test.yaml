@@ -10,6 +10,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.golangci.yaml'
+      - '*_test.go'
 
 permissions:
   contents: read
@@ -35,6 +36,7 @@ jobs:
         run: make lint
 
   test:
+    needs: [lint]
     runs-on: [ ubuntu-latest ]
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -54,6 +56,7 @@ jobs:
         run: make test
 
   build:
+    needs: [lint]
     runs-on: [ ubuntu-latest ]
     steps:
       - name: Harden the runner (Audit all outbound calls)

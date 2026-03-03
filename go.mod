@@ -1,5 +1,3 @@
-module mysimplewebhook
+module github.com/kengou/simplewebhook
 
 go 1.25
-
-require github.com/gorilla/mux v1.8.1

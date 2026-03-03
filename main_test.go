@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +22,12 @@ func (m *mockReadCloser) Read(p []byte) (n int, err error) {
 
 func (m *mockReadCloser) Close() error {
 	return nil
+}
+
+func computeTestHMAC(payload []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload) //nolint:errcheck
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 func TestHealthCheckHandler(t *testing.T) {
@@ -56,8 +65,7 @@ func TestWebhookHandler_ValidJSON(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(webhookHandler)
-	handler.ServeHTTP(rr, req)
+	makeWebhookHandler("").ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -73,18 +81,15 @@ func TestWebhookHandler_InvalidJSON(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(webhookHandler)
-	handler.ServeHTTP(rr, req)
+	makeWebhookHandler("").ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusBadRequest)
 	}
 
-	expectedBody := "Bad Request: Invalid JSON"
-	if !strings.Contains(rr.Body.String(), expectedBody) {
-		t.Errorf("handler returned unexpected body: got %v want body to contain %v",
-			rr.Body.String(), expectedBody)
+	if !strings.Contains(rr.Body.String(), "Bad Request: Invalid JSON") {
+		t.Errorf("handler returned unexpected body: got %v", rr.Body.String())
 	}
 }
 
@@ -95,18 +100,86 @@ func TestWebhookHandler_BodyReadError(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(webhookHandler)
-	handler.ServeHTTP(rr, req)
+	makeWebhookHandler("").ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusInternalServerError)
 	}
 
-	expectedBody := "Internal Server Error"
-	if !strings.Contains(rr.Body.String(), expectedBody) {
-		t.Errorf("handler returned unexpected body: got %v want body to contain %v",
-			rr.Body.String(), expectedBody)
+	if !strings.Contains(rr.Body.String(), "Internal Server Error") {
+		t.Errorf("handler returned unexpected body: got %v", rr.Body.String())
+	}
+}
+
+func TestWebhookHandler_BodyTooLarge(t *testing.T) {
+	largeBody := bytes.Repeat([]byte("a"), maxBodyBytes+1)
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(largeBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler("").ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusRequestEntityTooLarge {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusRequestEntityTooLarge)
+	}
+}
+
+func TestWebhookHandler_ValidSignature(t *testing.T) {
+	secret := "test-secret"
+	payload := []byte(`{"event":"push"}`)
+	sig := computeTestHMAC(payload, secret)
+
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Hub-Signature-256", sig)
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler(secret).ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	}
+}
+
+func TestWebhookHandler_InvalidSignature(t *testing.T) {
+	secret := "test-secret"
+	payload := []byte(`{"event":"push"}`)
+
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Hub-Signature-256", "sha256=invalidsignature")
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler(secret).ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusForbidden {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusForbidden)
+	}
+}
+
+func TestWebhookHandler_MissingSignature(t *testing.T) {
+	payload := []byte(`{"event":"push"}`)
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler("required-secret").ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusForbidden {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusForbidden)
 	}
 }
 

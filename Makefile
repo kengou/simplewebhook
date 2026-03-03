@@ -1,4 +1,7 @@
-# Makefile for snapshot-cli
+# Makefile for simplewebhook
+
+BINARY_NAME := simplewebhook
+
 .PHONY: build clean run docker
 
 .PHONY: build
@@ -8,10 +11,10 @@ build-%:
 	go build -o bin/$* ./main.go
 
 clean:
-	rm -f $(BINARY_NAME)
+	rm -f bin/$(BINARY_NAME)
 
 run: build
-	./$(BINARY_NAME)
+	./bin/$(BINARY_NAME)
 
 docker:
 	docker build -t $(BINARY_NAME):latest .

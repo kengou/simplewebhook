@@ -16,6 +16,7 @@ spec:
     spec:
       containers:
       - name: simplewebhook
+        # TODO: Pin to an immutable digest: ghcr.io/kengou/simplewebhook@sha256:<digest>
         image: ghcr.io/kengou/simplewebhook:main
         ports:
         - containerPort: 8080
@@ -30,8 +31,9 @@ spec:
           httpGet:
             path: /healthz
             port: 8080
-          initialDelaySeconds: 3
-          periodSeconds: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz
@@ -43,6 +45,9 @@ spec:
           runAsGroup: 65532
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
       securityContext:
         runAsNonRoot: true
         seccompProfile:
