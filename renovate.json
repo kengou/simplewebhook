@@ -36,5 +36,14 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+    "packageRules": [
+            {
+            "matchCategories": [
+                "docker"
+            ],
+            "enabled": true,
+            "pinDigests": true
+        }
+        ],
   "separateMinorPatch": true
 }
