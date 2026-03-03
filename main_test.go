@@ -26,7 +26,7 @@ func (m *mockReadCloser) Close() error {
 
 func computeTestHMAC(payload []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload) //nolint:errcheck
+	mac.Write(payload)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 

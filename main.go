@@ -42,25 +42,31 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
+	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("Server starting to listen", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("Failed to start server", "error", err)
-			os.Exit(1)
+			errCh <- err
 		}
 	}()
 
-	<-ctx.Done()
-	stop()
+	select {
+	case err := <-errCh:
+		stop()
+		slog.Error("Failed to start server", "error", err)
+		os.Exit(1)
+	case <-ctx.Done():
+		stop()
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
+		cancel()
 		slog.Error("Server forced to shutdown", "error", err)
 		os.Exit(1)
 	}
+	cancel()
 	slog.Info("Server shutdown gracefully")
 }
 
@@ -109,7 +115,7 @@ func validateHMAC(body []byte, signature, secret string) bool {
 		return false
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body) //nolint:errcheck
+	mac.Write(body)
 	expected := prefix + hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(signature), []byte(expected))
 }
