@@ -1,0 +1,118 @@
+openapi: 3.0.3
+info:
+  title: simplewebhook
+  version: "1.0"
+  description: |
+    A lightweight webhook receiver for debugging and testing.
+
+    Accepts incoming webhook payloads, optionally validates HMAC-SHA256 signatures,
+    and logs the full body to stdout as structured JSON.
+
+    ## Authentication
+
+    When the server is started with `WEBHOOK_SECRET` set, requests must include an
+    `X-Hub-Signature-256` header containing `sha256=<HMAC-SHA256 of the raw body>`
+    signed with the shared secret. This is compatible with GitHub, Stripe, Shopify,
+    and most webhook providers.
+
+    If `WEBHOOK_SECRET` is not set, all requests are accepted without validation.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /webhook:
+    post:
+      summary: Receive webhook payload
+      description: |
+        Accepts a JSON webhook payload. If `WEBHOOK_SECRET` is configured on the
+        server, the `X-Hub-Signature-256` header is required and validated before
+        the payload is processed. The full body is logged to stdout on success.
+      operationId: receiveWebhook
+      tags:
+        - Webhook
+      parameters:
+        - name: X-Hub-Signature-256
+          in: header
+          required: false
+          description: |
+            HMAC-SHA256 signature of the raw request body, prefixed with `sha256=`.
+            Required when the server is configured with `WEBHOOK_SECRET`.
+          schema:
+            type: string
+            example: "sha256=b94d27b9934d3e08a52e52d7da7dabfac484efe04294e576e4f23a6d9f7b4e04"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Any valid JSON object
+              additionalProperties: true
+            examples:
+              github_push:
+                summary: GitHub push event
+                value:
+                  event: push
+                  ref: refs/heads/main
+                  repository:
+                    full_name: kengou/simplewebhook
+              generic:
+                summary: Generic payload
+                value:
+                  event: my-event
+                  data:
+                    key: value
+      responses:
+        "200":
+          description: Payload accepted and logged to stdout
+        "400":
+          description: Request body is not valid JSON
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Bad Request: Invalid JSON\n"
+        "403":
+          description: HMAC signature is missing or does not match
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Forbidden: invalid signature\n"
+        "413":
+          description: Request body exceeds the 1 MiB limit
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Request body too large\n"
+        "500":
+          description: Failed to read the request body
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Internal Server Error\n"
+
+  /healthz:
+    get:
+      summary: Health check
+      description: Liveness and readiness probe endpoint. Always returns 200 when the server is running.
+      operationId: healthCheck
+      tags:
+        - Operations
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alive:
+                    type: boolean
+                    example: true
+              example:
+                alive: true
