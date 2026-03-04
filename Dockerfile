@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM --platform=${TARGETPLATFORM} gcr.io/distroless/static:nonroot@sha256:f512d819b8f109f2375e8b51d8cfd8aafe81034bc3e319740128b7d7f70d5036
 
 WORKDIR /
-COPY --from=builder /workspace/bin/* .
+COPY --from=builder /workspace/bin/simplewebhook .
 USER 65532:65532
 
 ENTRYPOINT ["/simplewebhook"]

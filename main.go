@@ -78,6 +78,7 @@ func healthCheckHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func makeWebhookHandler(secret string) http.HandlerFunc {
+	secretBytes := []byte(secret)
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 		defer r.Body.Close()
@@ -94,7 +95,7 @@ func makeWebhookHandler(secret string) http.HandlerFunc {
 			return
 		}
 
-		if secret != "" && !validateHMAC(body, r.Header.Get("X-Hub-Signature-256"), secret) {
+		if secret != "" && !validateHMAC(body, r.Header.Get("X-Hub-Signature-256"), secretBytes) {
 			http.Error(w, "Forbidden: invalid signature", http.StatusForbidden)
 			return
 		}
@@ -109,12 +110,12 @@ func makeWebhookHandler(secret string) http.HandlerFunc {
 	}
 }
 
-func validateHMAC(body []byte, signature, secret string) bool {
+func validateHMAC(body []byte, signature string, secretBytes []byte) bool {
 	const prefix = "sha256="
 	if len(signature) <= len(prefix) {
 		return false
 	}
-	mac := hmac.New(sha256.New, []byte(secret))
+	mac := hmac.New(sha256.New, secretBytes)
 	mac.Write(body)
 	expected := prefix + hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(signature), []byte(expected))
