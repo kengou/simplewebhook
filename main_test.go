@@ -14,6 +14,34 @@ import (
 	"testing"
 )
 
+func FuzzValidateHMAC(f *testing.F) {
+	secret := []byte("test-secret")
+	f.Add([]byte(`{"event":"push"}`), "sha256=abc123", secret)
+	f.Add([]byte{}, "sha256=", secret)
+	f.Add([]byte(`{}`), "", secret)
+
+	f.Fuzz(func(t *testing.T, body []byte, sig string, secretBytes []byte) {
+		validateHMAC(body, sig, secretBytes)
+	})
+}
+
+func FuzzWebhookHandler(f *testing.F) {
+	f.Add([]byte(`{"key":"value"}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`not json`))
+	f.Add([]byte{})
+
+	handler := makeWebhookHandler("")
+	f.Fuzz(func(t *testing.T, body []byte) {
+		req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(body))
+		if err != nil {
+			return
+		}
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+	})
+}
+
 type mockReadCloser struct{}
 
 func (m *mockReadCloser) Read(p []byte) (n int, err error) {
