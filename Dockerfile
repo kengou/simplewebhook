@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=${CGO_ENABLED} GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o bin/simplewebhook ./main.go
 
 
-FROM --platform=${TARGETPLATFORM} gcr.io/distroless/static:nonroot@sha256:f512d819b8f109f2375e8b51d8cfd8aafe81034bc3e319740128b7d7f70d5036
+FROM --platform=${TARGETPLATFORM} gcr.io/distroless/static:nonroot@sha256:e3f945647ffb95b5839c07038d64f9811adf17308b9121d8a2b87b6a22a80a39
 
 WORKDIR /
 COPY --from=builder /workspace/bin/simplewebhook .
