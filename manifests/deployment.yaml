@@ -20,6 +20,21 @@ spec:
         image: ghcr.io/kengou/simplewebhook:main
         ports:
         - containerPort: 8080
+        # env:
+        #   # Log request headers and connection metadata on /webhook.
+        #   # WARNING: logs every header verbatim, including secrets such as
+        #   # Authorization, Cookie, and X-Hub-Signature-256. Enable only for
+        #   # trusted debugging. Accepts "true"/"1"/"false"/"0".
+        #   - name: LOG_HEADERS
+        #     value: "false"
+        #   # Shared secret for HMAC-SHA256 signature validation.
+        #   # Create with: kubectl create secret generic simplewebhook-secret \
+        #   #   --from-literal=webhook-secret=mysecret
+        #   - name: WEBHOOK_SECRET
+        #     valueFrom:
+        #       secretKeyRef:
+        #         name: simplewebhook-secret
+        #         key: webhook-secret
         resources:
           requests:
             cpu: 100m

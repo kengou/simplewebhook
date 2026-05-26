@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -28,8 +29,17 @@ func main() {
 		slog.Warn("WEBHOOK_SECRET not set; webhook requests will not be authenticated")
 	}
 
+	logHeadersEnv := os.Getenv("LOG_HEADERS")
+	logHeaders, err := strconv.ParseBool(logHeadersEnv)
+	if err != nil && logHeadersEnv != "" {
+		slog.Warn("Invalid LOG_HEADERS value; defaulting to false", "value", logHeadersEnv, "error", err)
+	}
+	if logHeaders {
+		slog.Warn("LOG_HEADERS enabled; request headers (including any secrets) will be logged verbatim")
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /webhook", makeWebhookHandler(webhookSecret))
+	mux.HandleFunc("POST /webhook", makeWebhookHandler(webhookSecret, logHeaders))
 	mux.HandleFunc("GET /healthz", healthCheckHandler)
 
 	addr := "0.0.0.0:" + getEnvOrDefault("PORT", "8080")
@@ -77,7 +87,7 @@ func healthCheckHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(healthResponse) //nolint:errcheck
 }
 
-func makeWebhookHandler(secret string) http.HandlerFunc {
+func makeWebhookHandler(secret string, logHeaders bool) http.HandlerFunc {
 	secretBytes := []byte(secret)
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
@@ -105,7 +115,18 @@ func makeWebhookHandler(secret string) http.HandlerFunc {
 			return
 		}
 
-		slog.Info("Received webhook request", "content_length", len(body), "body", json.RawMessage(body))
+		attrs := []any{"content_length", len(body), "body", json.RawMessage(body)}
+		if logHeaders {
+			attrs = append(attrs,
+				"method", r.Method,
+				"path", r.URL.Path,
+				"query", r.URL.RawQuery,
+				"host", r.Host,
+				"remote_addr", r.RemoteAddr,
+				"headers", r.Header,
+			)
+		}
+		slog.Info("Received webhook request", attrs...)
 		w.WriteHeader(http.StatusOK)
 	}
 }

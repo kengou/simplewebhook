@@ -52,8 +52,12 @@ All configuration is via environment variables.
 |------------------|--------------------------------------------------|---------|----------|
 | `PORT`           | Port to listen on                                | `8080`  | No       |
 | `WEBHOOK_SECRET` | Shared secret for HMAC-SHA256 signature validation | —     | No       |
+| `LOG_HEADERS`    | Log request headers and connection metadata on `/webhook` (accepts `true`/`1`/`false`/`0`) | `false` | No |
 
 If `WEBHOOK_SECRET` is not set, all requests are accepted without authentication — useful for open debugging sessions.
+
+> [!WARNING]
+> `LOG_HEADERS` logs **every** request header verbatim, including secrets such as `Authorization`, `Cookie`, and the `X-Hub-Signature-256` value. Only enable it for trusted/local debugging, and be mindful that anything written to stdout may be retained by your log aggregator.
 
 ## API
 

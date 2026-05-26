@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,7 +32,7 @@ func FuzzWebhookHandler(f *testing.F) {
 	f.Add([]byte(`not json`))
 	f.Add([]byte{})
 
-	handler := makeWebhookHandler("")
+	handler := makeWebhookHandler("", false)
 	f.Fuzz(func(t *testing.T, body []byte) {
 		req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(body))
 		if err != nil {
@@ -93,7 +94,7 @@ func TestWebhookHandler_ValidJSON(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler("").ServeHTTP(rr, req)
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -109,7 +110,7 @@ func TestWebhookHandler_InvalidJSON(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler("").ServeHTTP(rr, req)
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -128,7 +129,7 @@ func TestWebhookHandler_BodyReadError(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler("").ServeHTTP(rr, req)
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -148,7 +149,7 @@ func TestWebhookHandler_BodyTooLarge(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler("").ServeHTTP(rr, req)
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusRequestEntityTooLarge {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -168,7 +169,7 @@ func TestWebhookHandler_ValidSignature(t *testing.T) {
 	req.Header.Set("X-Hub-Signature-256", sig)
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler(secret).ServeHTTP(rr, req)
+	makeWebhookHandler(secret, false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -187,7 +188,7 @@ func TestWebhookHandler_InvalidSignature(t *testing.T) {
 	req.Header.Set("X-Hub-Signature-256", "sha256=invalidsignature")
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler(secret).ServeHTTP(rr, req)
+	makeWebhookHandler(secret, false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusForbidden {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -203,12 +204,66 @@ func TestWebhookHandler_MissingSignature(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	makeWebhookHandler("required-secret").ServeHTTP(rr, req)
+	makeWebhookHandler("required-secret", false).ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusForbidden {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusForbidden)
 	}
+}
+
+func TestWebhookHandler_LogHeaders(t *testing.T) {
+	payload := `{"event":"push"}`
+
+	t.Run("logs headers and metadata when enabled", func(t *testing.T) {
+		var buf bytes.Buffer
+		prev := slog.Default()
+		slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+		defer slog.SetDefault(prev)
+
+		req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewBufferString(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-Custom-Header", "custom-value")
+
+		rr := httptest.NewRecorder()
+		makeWebhookHandler("", true).ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		out := buf.String()
+		for _, want := range []string{"X-Custom-Header", "custom-value", `"method":"POST"`, `"headers":`, "remote_addr"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("log output missing %q; got: %s", want, out)
+			}
+		}
+	})
+
+	t.Run("omits headers when disabled", func(t *testing.T) {
+		var buf bytes.Buffer
+		prev := slog.Default()
+		slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+		defer slog.SetDefault(prev)
+
+		req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewBufferString(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-Custom-Header", "custom-value")
+
+		rr := httptest.NewRecorder()
+		makeWebhookHandler("", false).ServeHTTP(rr, req)
+
+		out := buf.String()
+		for _, notWant := range []string{"X-Custom-Header", `"headers":`, "remote_addr"} {
+			if strings.Contains(out, notWant) {
+				t.Errorf("log output unexpectedly contains %q; got: %s", notWant, out)
+			}
+		}
+	})
 }
 
 func TestGetEnvOrDefault(t *testing.T) {
