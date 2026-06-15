@@ -102,6 +102,57 @@ func TestWebhookHandler_ValidJSON(t *testing.T) {
 	}
 }
 
+func TestWebhookHandler_ValidYAML(t *testing.T) {
+	for _, ct := range []string{"application/yaml", "application/x-yaml"} {
+		t.Run(ct, func(t *testing.T) {
+			payload := "key: value\nnumber: 123\n"
+			req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", strings.NewReader(payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", ct)
+
+			rr := httptest.NewRecorder()
+			makeWebhookHandler("", false).ServeHTTP(rr, req)
+
+			if status := rr.Code; status != http.StatusOK {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+			}
+		})
+	}
+}
+
+func TestWebhookHandler_UnsupportedContentType(t *testing.T) {
+	payload := "hello world"
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", strings.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnsupportedMediaType {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusUnsupportedMediaType)
+	}
+}
+
+func TestWebhookHandler_InvalidContentType(t *testing.T) {
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "not/a/valid/content-type///")
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusBadRequest)
+	}
+}
+
 func TestWebhookHandler_InvalidJSON(t *testing.T) {
 	payload := `{"key":"value"` // Malformed JSON
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewBufferString(payload))

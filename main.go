@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
@@ -110,12 +111,32 @@ func makeWebhookHandler(secret string, logHeaders bool) http.HandlerFunc {
 			return
 		}
 
-		if !json.Valid(body) {
-			http.Error(w, "Bad Request: Invalid JSON", http.StatusBadRequest)
+		mediaType := "application/json"
+		if ct := r.Header.Get("Content-Type"); ct != "" {
+			mt, _, err := mime.ParseMediaType(ct)
+			if err != nil {
+				http.Error(w, "Bad Request: Invalid Content-Type", http.StatusBadRequest)
+				return
+			}
+			mediaType = mt
+		}
+
+		var bodyAttr any
+		switch mediaType {
+		case "application/json":
+			if !json.Valid(body) {
+				http.Error(w, "Bad Request: Invalid JSON", http.StatusBadRequest)
+				return
+			}
+			bodyAttr = json.RawMessage(body)
+		case "application/yaml", "application/x-yaml":
+			bodyAttr = string(body)
+		default:
+			http.Error(w, "Unsupported Media Type", http.StatusUnsupportedMediaType)
 			return
 		}
 
-		attrs := []any{"content_length", len(body), "body", json.RawMessage(body)}
+		attrs := []any{"content_type", mediaType, "content_length", len(body), "body", bodyAttr}
 		if logHeaders {
 			attrs = append(attrs,
 				"method", r.Method,
