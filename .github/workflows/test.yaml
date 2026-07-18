@@ -17,9 +17,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 15
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -40,6 +45,7 @@ jobs:
   test:
     needs: [lint]
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -60,6 +66,7 @@ jobs:
   build:
     needs: [lint]
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -80,6 +87,7 @@ jobs:
   fuzz:
     needs: [lint]
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 15
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -102,6 +110,7 @@ jobs:
   govulncheck:
     needs: [lint]
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -118,5 +127,5 @@ jobs:
           go-version-file: 'go.mod'
       - name: govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
           govulncheck ./...

@@ -17,6 +17,18 @@
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "golangci/golangci-lint",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump govulncheck version in workflows",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/test\\.yaml$/"
+      ],
+      "matchStrings": [
+        "golang\\.org/x/vuln/cmd/govulncheck@(?<currentValue>v[\\d.]+)"
+      ],
+      "datasourceTemplate": "go",
+      "depNameTemplate": "golang.org/x/vuln"
     }
   ],
   "kubernetes": {
