@@ -5,16 +5,17 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kengou/simplewebhook/badge)](https://securityscorecards.dev/viewer/?uri=github.com/kengou/simplewebhook)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-A lightweight webhook receiver for debugging and testing. It accepts incoming HTTP POST requests, validates their signature (optional), and logs the full payload to stdout as structured JSON — making it easy to inspect what any webhook sender is delivering.
+A lightweight webhook receiver for debugging and testing. It accepts incoming HTTP POST requests (JSON or YAML), validates their signature (optional), and logs the full payload to stdout as structured JSON — making it easy to inspect what any webhook sender is delivering.
 
 ## Features
 
 - Logs full webhook payload as structured JSON to stdout
-- Optional HMAC-SHA256 signature verification (compatible with GitHub, Stripe, and most providers)
+- Accepts JSON and YAML payloads (YAML is converted to JSON before logging)
+- Optional HMAC-SHA256 signature verification (GitHub-compatible `X-Hub-Signature-256`)
 - Request body size limit (1 MiB) to prevent memory exhaustion
 - Graceful shutdown on SIGTERM/SIGINT
 - Health check endpoint at `/healthz`
-- Zero external dependencies — stdlib only
+- Single external dependency ([sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml)) — everything else is stdlib
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`)
 - Signed container images via [cosign](https://github.com/sigstore/cosign)
 
@@ -30,6 +31,11 @@ go run ./main.go
 curl -X POST http://localhost:8080/webhook \
   -H "Content-Type: application/json" \
   -d '{"event":"push","repo":"myrepo"}'
+
+# YAML works too
+curl -X POST http://localhost:8080/webhook \
+  -H "Content-Type: application/yaml" \
+  --data-binary $'event: push\nrepo: myrepo'
 ```
 
 ### Run with Docker
@@ -61,27 +67,10 @@ If `WEBHOOK_SECRET` is not set, all requests are accepted without authentication
 
 ## API
 
-### `POST /webhook`
+The full request/response contract lives in [`openapi.yaml`](openapi.yaml) — that file is the single source of truth for the API. In short:
 
-Receives a webhook payload. Validates the HMAC signature if `WEBHOOK_SECRET` is configured, then logs the full body to stdout.
-
-**Request**
-
-| Element | Details |
-|---|---|
-| Content-Type | `application/json` |
-| Max body size | 1 MiB |
-| Auth header | `X-Hub-Signature-256: sha256=<hmac>` (required only when `WEBHOOK_SECRET` is set) |
-
-**Responses**
-
-| Status | Meaning |
-|---|---|
-| `200 OK` | Payload accepted and logged |
-| `400 Bad Request` | Body is not valid JSON |
-| `403 Forbidden` | HMAC signature missing or invalid |
-| `413 Request Entity Too Large` | Body exceeds 1 MiB |
-| `500 Internal Server Error` | Failed to read request body |
+- `POST /webhook` — receives a JSON or YAML payload (max 1 MiB), validates the HMAC signature if `WEBHOOK_SECRET` is set, and logs the body to stdout as structured JSON. YAML payloads are converted to JSON before logging. Requests without a `Content-Type` header are treated as JSON.
+- `GET /healthz` — liveness/readiness probe; returns `{"alive": true}`.
 
 **Example log output**
 
@@ -90,26 +79,17 @@ Receives a webhook payload. Validates the HMAC signature if `WEBHOOK_SECRET` is 
   "time": "2026-03-04T10:00:00Z",
   "level": "INFO",
   "msg": "Received webhook request",
+  "content_type": "application/json",
   "content_length": 42,
   "body": {"event": "push", "repo": "myrepo"}
 }
 ```
 
----
-
-### `GET /healthz`
-
-Liveness/readiness probe endpoint.
-
-**Response**
-
-```json
-{"alive": true}
-```
-
 ## Authentication
 
-When `WEBHOOK_SECRET` is set, the server validates the `X-Hub-Signature-256` header using HMAC-SHA256. This is the same scheme used by GitHub, Stripe, Shopify, and most webhook providers.
+When `WEBHOOK_SECRET` is set, the server validates the `X-Hub-Signature-256` header using hex-encoded HMAC-SHA256. This is the GitHub webhook signature scheme, also used by Gitea and other GitHub-compatible providers.
+
+Providers with their own signature schemes are **not** compatible — e.g. Stripe signs a timestamped payload in `Stripe-Signature`, and Shopify sends a base64-encoded HMAC in `X-Shopify-Hmac-Sha256`. To receive payloads from those providers, leave `WEBHOOK_SECRET` unset (no signature verification).
 
 ### Sending a signed request
 
@@ -230,11 +210,16 @@ sequenceDiagram
         end
     end
 
-    alt Body is not valid JSON
+    alt Content-Type not JSON or YAML
+        S-->>C: 415 Unsupported Media Type
+    end
+
+    alt Body does not parse as JSON/YAML
         S-->>C: 400 Bad Request
     end
 
-    S->>L: INFO {content_length, body: {...}}
+    S->>S: convert YAML to JSON (if needed)
+    S->>L: INFO {content_type, content_length, body: {...}}
     S-->>C: 200 OK
 ```
 
