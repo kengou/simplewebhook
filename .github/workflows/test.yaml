@@ -11,13 +11,20 @@ on:
       - 'go.sum'
       - '.golangci.yaml'
       - '*_test.go'
+      - 'Makefile'
+      - '.github/workflows/test.yaml'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 15
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -38,6 +45,7 @@ jobs:
   test:
     needs: [lint]
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -58,6 +66,7 @@ jobs:
   build:
     needs: [lint]
     runs-on: [ ubuntu-latest ]
+    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -74,3 +83,49 @@ jobs:
           go-version-file: 'go.mod'
       - name: build
         run: make build
+
+  fuzz:
+    needs: [lint]
+    runs-on: [ ubuntu-latest ]
+    timeout-minutes: 15
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: 'go.mod'
+      - name: Fuzz validateHMAC
+        run: go test -run='^$' -fuzz='^FuzzValidateHMAC$' -fuzztime=30s ./...
+      - name: Fuzz webhook handler
+        run: go test -run='^$' -fuzz='^FuzzWebhookHandler$' -fuzztime=30s ./...
+
+  govulncheck:
+    needs: [lint]
+    runs-on: [ ubuntu-latest ]
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: 'go.mod'
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          govulncheck ./...

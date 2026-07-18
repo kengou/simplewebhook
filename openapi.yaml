@@ -5,15 +5,21 @@ info:
   description: |
     A lightweight webhook receiver for debugging and testing.
 
-    Accepts incoming webhook payloads, optionally validates HMAC-SHA256 signatures,
-    and logs the full body to stdout as structured JSON.
+    Accepts incoming webhook payloads (JSON or YAML), optionally validates
+    HMAC-SHA256 signatures, and logs the full body to stdout as structured JSON.
+    YAML payloads are converted to JSON before logging.
 
     ## Authentication
 
     When the server is started with `WEBHOOK_SECRET` set, requests must include an
-    `X-Hub-Signature-256` header containing `sha256=<HMAC-SHA256 of the raw body>`
-    signed with the shared secret. This is compatible with GitHub, Stripe, Shopify,
-    and most webhook providers.
+    `X-Hub-Signature-256` header containing `sha256=<hex HMAC-SHA256 of the raw body>`
+    signed with the shared secret. This is the GitHub webhook signature scheme,
+    also used by Gitea and other GitHub-compatible providers.
+
+    Providers with their own signature schemes (e.g. Stripe's `Stripe-Signature`
+    timestamped scheme or Shopify's base64-encoded `X-Shopify-Hmac-Sha256`) are
+    not validated — leave `WEBHOOK_SECRET` unset to receive their payloads
+    without signature verification.
 
     If `WEBHOOK_SECRET` is not set, all requests are accepted without validation.
 
@@ -26,9 +32,13 @@ paths:
     post:
       summary: Receive webhook payload
       description: |
-        Accepts a JSON webhook payload. If `WEBHOOK_SECRET` is configured on the
-        server, the `X-Hub-Signature-256` header is required and validated before
-        the payload is processed. The full body is logged to stdout on success.
+        Accepts a JSON or YAML webhook payload. If `WEBHOOK_SECRET` is configured
+        on the server, the `X-Hub-Signature-256` header is required and validated
+        before the payload is processed. The full body is logged to stdout as
+        structured JSON on success; YAML payloads are converted to JSON.
+
+        Requests without a `Content-Type` header are treated as `application/json`.
+        The request body may be at most 1 MiB.
       operationId: receiveWebhook
       tags:
         - Webhook
@@ -64,16 +74,41 @@ paths:
                   event: my-event
                   data:
                     key: value
+          application/yaml:
+            schema:
+              type: object
+              description: Any valid YAML document (converted to JSON for logging)
+              additionalProperties: true
+            examples:
+              generic:
+                summary: Generic YAML payload
+                value:
+                  event: my-event
+                  data:
+                    key: value
+          application/x-yaml:
+            schema:
+              type: object
+              description: Any valid YAML document (converted to JSON for logging)
+              additionalProperties: true
       responses:
         "200":
           description: Payload accepted and logged to stdout
         "400":
-          description: Request body is not valid JSON
+          description: |
+            Request body does not parse as the declared content type, or the
+            `Content-Type` header itself is malformed.
           content:
             text/plain:
               schema:
                 type: string
-                example: "Bad Request: Invalid JSON\n"
+              examples:
+                invalid_json:
+                  value: "Bad Request: Invalid JSON\n"
+                invalid_yaml:
+                  value: "Bad Request: Invalid YAML\n"
+                invalid_content_type:
+                  value: "Bad Request: Invalid Content-Type\n"
         "403":
           description: HMAC signature is missing or does not match
           content:
@@ -88,6 +123,15 @@ paths:
               schema:
                 type: string
                 example: "Request body too large\n"
+        "415":
+          description: |
+            `Content-Type` is not `application/json`, `application/yaml`, or
+            `application/x-yaml`.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Unsupported Media Type\n"
         "500":
           description: Failed to read the request body
           content:

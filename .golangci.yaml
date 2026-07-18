@@ -14,7 +14,6 @@ linters:
     - errname
     - errorlint
     - forbidigo
-    - ginkgolinter
     - gocheckcompilerdirectives
     - goconst
     - gocritic
@@ -92,16 +91,8 @@ linters:
       disable:
         - fieldalignment
       enable-all: true
-    misspell:
-      ignore-rules:
-        - metis
     nolintlint:
       require-specific: true
-    staticcheck:
-      dot-import-whitelist:
-        - github.com/onsi/ginkgo/v2
-        - github.com/onsi/gomega
-        - github.com/onsi/gomega/gstruct
     usestdlibvars:
       http-method: true
       http-status-code: true
@@ -146,7 +137,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/cloudoperators/greenhouse
+        - github.com/kengou/simplewebhook
   exclusions:
     generated: lax
     paths:

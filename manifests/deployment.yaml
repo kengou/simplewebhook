@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: simplewebhook
-        # TODO: Pin to an immutable digest: ghcr.io/kengou/simplewebhook@sha256:<digest>
-        image: ghcr.io/kengou/simplewebhook:main
+        # Digest-pinned; Renovate keeps this current as :main moves.
+        image: ghcr.io/kengou/simplewebhook:main@sha256:0324a862247c0d9c98b9855e95f2187eed83f3577573356597164e160ed08701
         ports:
         - containerPort: 8080
         # env:

@@ -4,6 +4,8 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
+  "minimumReleaseAge": "7 days",
+  "automerge": true,
   "customManagers": [
 {
       "customType": "regex",
@@ -20,18 +22,22 @@
     },
     {
       "customType": "regex",
-      "description": "Bump ginkolinter version in the Makefile",
+      "description": "Bump govulncheck version in workflows",
       "managerFilePatterns": [
-        "/^Makefile$/"
+        "/^\\.github/workflows/test\\.yaml$/"
       ],
       "matchStrings": [
-        "GINKGOLINTER_VERSION\\s*\\?=\\s*(?<currentValue>.?(?:\\d+\\.){0,2}\\d+)"
+        "golang\\.org/x/vuln/cmd/govulncheck@(?<currentValue>v[\\d.]+)"
       ],
-      "datasourceTemplate": "github-tags",
-      "depNameTemplate": "nunnatsa/ginkgolinter",
-      "extractVersionTemplate": "^v(?<version>.*)$"
+      "datasourceTemplate": "go",
+      "depNameTemplate": "golang.org/x/vuln"
     }
   ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^manifests/.*\\.ya?ml$/"
+    ]
+  },
   "postUpdateOptions": [
     "gomodTidy",
     "gomodUpdateImportPaths"
@@ -43,6 +49,11 @@
             ],
             "enabled": true,
             "pinDigests": true
+        },
+        {
+            "description": "No cooldown for our own image digest pin in the k8s manifests",
+            "matchPackageNames": ["ghcr.io/kengou/simplewebhook"],
+            "minimumReleaseAge": null
         }
         ],
   "separateMinorPatch": true

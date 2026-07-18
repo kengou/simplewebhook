@@ -23,4 +23,4 @@ Please include:
 - Webhook payloads are authenticated via HMAC-SHA256 (`X-Hub-Signature-256`) when `WEBHOOK_SECRET` is set
 - Request bodies are capped at 1 MiB to prevent memory exhaustion
 - The container runs as a non-root user (`65532`) with a read-only filesystem and all capabilities dropped
-- No external runtime dependencies; stdlib only
+- Minimal dependency surface: a single external runtime dependency ([sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml)) for YAML parsing; everything else is stdlib

@@ -6,6 +6,8 @@ ARG TARGETARCH
 ENV CGO_ENABLED=0
 
 WORKDIR /workspace
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \

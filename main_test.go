@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 )
@@ -105,6 +104,11 @@ func TestWebhookHandler_ValidJSON(t *testing.T) {
 func TestWebhookHandler_ValidYAML(t *testing.T) {
 	for _, ct := range []string{"application/yaml", "application/x-yaml"} {
 		t.Run(ct, func(t *testing.T) {
+			var buf bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+			defer slog.SetDefault(prev)
+
 			payload := "key: value\nnumber: 123\n"
 			req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", strings.NewReader(payload))
 			if err != nil {
@@ -118,7 +122,31 @@ func TestWebhookHandler_ValidYAML(t *testing.T) {
 			if status := rr.Code; status != http.StatusOK {
 				t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 			}
+
+			if !strings.Contains(buf.String(), `"body":{"key":"value","number":123}`) {
+				t.Errorf("expected YAML body logged as structured JSON; got: %s", buf.String())
+			}
 		})
+	}
+}
+
+func TestWebhookHandler_InvalidYAML(t *testing.T) {
+	payload := "key: value\n  bad indentation: [unclosed\n"
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", strings.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/yaml")
+
+	rr := httptest.NewRecorder()
+	makeWebhookHandler("", false).ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusBadRequest)
+	}
+
+	if !strings.Contains(rr.Body.String(), "Bad Request: Invalid YAML") {
+		t.Errorf("handler returned unexpected body: got %v", rr.Body.String())
 	}
 }
 
@@ -322,52 +350,39 @@ func TestGetEnvOrDefault(t *testing.T) {
 		name         string
 		key          string
 		value        string
+		set          bool
 		defaultValue string
 		expected     string
-		setup        func(key, value string)
-		teardown     func(key string)
 	}{
 		{
 			name:         "should return env variable value when set",
 			key:          "TEST_ENV_VAR",
 			value:        "test_value",
+			set:          true,
 			defaultValue: "default",
 			expected:     "test_value",
-			setup: func(key, value string) {
-				os.Setenv(key, value)
-			},
-			teardown: func(key string) {
-				os.Unsetenv(key)
-			},
 		},
 		{
 			name:         "should return default value when env variable is not set",
 			key:          "TEST_ENV_VAR_UNSET",
-			value:        "",
 			defaultValue: "default_value",
 			expected:     "default_value",
-			setup:        func(key, value string) {},
-			teardown:     func(key string) {},
 		},
 		{
 			name:         "should return default value when env variable is an empty string",
 			key:          "TEST_ENV_VAR_EMPTY",
 			value:        "",
+			set:          true,
 			defaultValue: "default_for_empty",
 			expected:     "default_for_empty",
-			setup: func(key, value string) {
-				os.Setenv(key, value)
-			},
-			teardown: func(key string) {
-				os.Unsetenv(key)
-			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setup(tt.key, tt.value)
-			defer tt.teardown(tt.key)
+			if tt.set {
+				t.Setenv(tt.key, tt.value)
+			}
 
 			result := getEnvOrDefault(tt.key, tt.defaultValue)
 			if result != tt.expected {

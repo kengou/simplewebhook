@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"sigs.k8s.io/yaml"
 )
 
 const maxBodyBytes = 1 << 20 // 1 MiB
@@ -43,7 +45,7 @@ func main() {
 	mux.HandleFunc("POST /webhook", makeWebhookHandler(webhookSecret, logHeaders))
 	mux.HandleFunc("GET /healthz", healthCheckHandler)
 
-	addr := "0.0.0.0:" + getEnvOrDefault("PORT", "8080")
+	addr := ":" + getEnvOrDefault("PORT", "8080")
 	srv := &http.Server{
 		Handler:      mux,
 		Addr:         addr,
@@ -130,7 +132,12 @@ func makeWebhookHandler(secret string, logHeaders bool) http.HandlerFunc {
 			}
 			bodyAttr = json.RawMessage(body)
 		case "application/yaml", "application/x-yaml":
-			bodyAttr = string(body)
+			jsonBody, err := yaml.YAMLToJSON(body)
+			if err != nil {
+				http.Error(w, "Bad Request: Invalid YAML", http.StatusBadRequest)
+				return
+			}
+			bodyAttr = json.RawMessage(jsonBody)
 		default:
 			http.Error(w, "Unsupported Media Type", http.StatusUnsupportedMediaType)
 			return
