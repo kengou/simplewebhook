@@ -4,6 +4,8 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
+  "minimumReleaseAge": "7 days",
+  "automerge": true,
   "customManagers": [
 {
       "customType": "regex",
@@ -47,6 +49,11 @@
             ],
             "enabled": true,
             "pinDigests": true
+        },
+        {
+            "description": "No cooldown for our own image digest pin in the k8s manifests",
+            "matchPackageNames": ["ghcr.io/kengou/simplewebhook"],
+            "minimumReleaseAge": null
         }
         ],
   "separateMinorPatch": true
