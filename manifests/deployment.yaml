@@ -17,7 +17,7 @@ spec:
       containers:
       - name: simplewebhook
         # Digest-pinned; Renovate keeps this current as :main moves.
-        image: ghcr.io/kengou/simplewebhook:main@sha256:e032a9be916d93f417db0ba6121e0a9db0f314ace8de9a8becb5ada05f9083bb
+        image: ghcr.io/kengou/simplewebhook:main@sha256:33e960b5251fe12231e504cf8b33edcf0d2e4ea41cf71f29595e4cb37607dd7f
         ports:
         - containerPort: 8080
         # env:
