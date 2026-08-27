@@ -25,7 +25,7 @@ $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
 GOLINT ?= $(LOCALBIN)/golangci-lint
-GOLINT_VERSION ?= 2.13.0
+GOLINT_VERSION ?= 2.13.1
 
 lint: golint
 	$(GOLINT) run -v --timeout 5m
