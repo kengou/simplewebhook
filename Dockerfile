@@ -1,5 +1,5 @@
 # Dockerfile for simplewebhook
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.27@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.27@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
